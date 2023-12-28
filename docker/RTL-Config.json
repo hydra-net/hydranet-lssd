@@ -1,0 +1,34 @@
+{
+  "port": "3006",
+  "defaultNodeIndex": 1,
+  "SSO": {
+    "rtlSSO": 0,
+    "rtlCookiePath": "",
+    "logoutRedirectLink": ""
+  },
+  "nodes": [
+    {
+      "index": 1,
+      "lnNode": "bot-0",
+      "lnImplementation": "LND",
+      "Authentication": {
+        "macaroonPath": "/bot-0/chain/bitcoin/mainnet",
+        "swapMacaroonPath": "/data",
+        "boltzMacaroonPath": "/data",
+        "configPath": "",
+        "lnApiPassword": ""
+      },
+      "Settings": {
+        "userPersona": "OPERATOR",
+        "themeMode": "DAY",
+        "themeColor": "PURPLE",
+        "channelBackupPath": "/data",
+        "bitcoindConfigPath": "",
+        "logLevel": "INFO",
+        "fiatConversion": false,
+        "lnServerUrl": "https://bot-0-lnd-btc:12000"
+      }
+    }
+  ],
+  "multiPassHashed": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+}

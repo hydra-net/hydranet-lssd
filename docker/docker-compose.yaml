@@ -1,0 +1,71 @@
+version: '3.8'
+services:
+  bot-0-lnd-btc:
+    image: hydranetdao/lnd-btc:latest
+    pull_policy: always
+    ports:
+      - "8332:8332"      # RPC
+      - "8333:8333"      # P2P
+      - "18332:18332"    # Testnet RPC
+      - "18333:18333"    # Testnet P2P
+      - "10000:10000"    # RPC for service
+      - "12000:12000"    # REST for service
+      - "11000:11000"    # LND for service
+    volumes:
+      - type: bind
+        source: ${PWD}/bot-0-lnd-btc
+        target: /data
+        bind:
+          create_host_path: true        
+      - type: bind
+        source: ./start-lnd.sh
+        target: /bin/start.sh
+    command: ["/bin/bash", "/bin/start.sh"]
+    restart: always
+
+  rtl:
+    image: shahanafarooqui/rtl:0.13.1
+    ports:
+      - "3006:3006"
+    environment:
+      RTL_CONFIG_PATH: /config
+    volumes:
+      - ./RTL-Config.json:/config/RTL-Config.json
+      - ${PWD}/bot-0-lnd-btc:/bot-0:ro
+    restart: always      
+
+  bot-0-vector-node:
+    image: hydranetdao/vector-node
+    pull_policy: always
+    environment:
+      VECTOR_PROD: "true"
+      VECTOR_SQLITE_FILE: /database/store.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - type: bind
+        source: ${PWD}/bot-0-vector-db
+        target: /database
+        bind:
+          create_host_path: true 
+      - type: bind
+        source: ./bot-0-vector-config.json
+        target: /app/config.json
+    restart: always
+
+
+  bot-0-lssd:
+    image: hydranetdao/lssd:latest
+    pull_policy: always
+    container_name: bot-0-lssd
+    environment:
+      - API_SECRET=<replace>
+
+    command: "-c '/tmp/lssd --orderbookAPISecret=$${API_SECRET} --orderbookUrl=wss://orderbook-mainnet.hydranet.to/api/ws --environment=production'"
+
+    ports:
+      - "50051:50051"  # gRPC port
+      - "9012:9012"    # Vector hook port
+    volumes:
+      - ${PWD}/bot-0-lnd-btc:/app
+    restart: always

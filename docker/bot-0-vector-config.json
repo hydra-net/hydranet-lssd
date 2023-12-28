@@ -1,0 +1,22 @@
+    {
+      "natsUrl": "nats://79.124.78.154:32026",
+      "authUrl": "https://messaging-mainnet.hydranet.to",
+      "production": true,      
+      "adminToken": "test",
+      "mnemonic": "<replace>", 
+      "chainProviders": {
+        "1": "https://rpc.ankr.com/eth/34b1ae525d8a62e0b20636fc1810aa5bd4c807c9ddd2119f1270a5c0d60591df",
+        "42161": "https://rpc.ankr.com/arbitrum/34b1ae525d8a62e0b20636fc1810aa5bd4c807c9ddd2119f1270a5c0d60591df"
+      },
+      "chainAddresses": {
+        "42161": {
+        "channelFactoryAddress": "0xC2bDbBF7b01d43Ad10b4de57D3Cb617f2a9a730f",
+        "transferRegistryAddress": "0x34904ef39932db46E60524Bb119f2D6AD58bDC3d"
+       },
+       "1": {
+        "channelFactoryAddress": "0xC2bDbBF7b01d43Ad10b4de57D3Cb617f2a9a730f",
+        "transferRegistryAddress": "0x5FAe7F15Ae20A10053CCca1DcFce0E2Bb4D50A7d"
+       }
+       
+      }
+    }

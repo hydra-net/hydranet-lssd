@@ -1,0 +1,443 @@
+syntax = "proto3";
+
+package lssdrpc;
+
+// A non-negative Big Integer represented as string, like "100000000"
+message BigInteger
+{
+    string value = 1;
+}
+
+enum OrderSide { buy = 0; sell = 1; }
+
+// currencies
+service currencies
+{
+    // before being able to enable a trading pair, you need to add the two involved currencies
+    // for example, for activating XSN_LTC, you will add the XSN currency, and the LTC currency.
+    //
+    // For now, only currencies supported by lnd (lightning network) work.
+    rpc AddCurrency(AddCurrencyRequest) returns(AddCurrencyResponse);
+
+    // Return added currencies, like LTC, before calling this method, you must
+    // have already added some currency
+    rpc GetAddedCurrencies(GetAddedCurrenciesRequest) returns(GetAddedCurrenciesResponse);
+}
+
+message AddCurrencyRequest
+{
+    // the currency, like XSN or LTC
+    string currency = 1;
+
+    oneof conf
+    {
+        // the path to the tls certificate, if the certificate is stored on the same computer
+        LndConfiguration lnd = 3;
+        // the raw tls certificate represented as string
+        ConnextConfiguration connext = 4;
+    }
+}
+
+message ConnextConfiguration
+{
+    // the address:port allowing lssd to connect to connext daemon like "localhost:8001"
+    string connextChannel = 1;
+    // address of token that will be used for add currency request
+    string tokenAddress = 2;
+    // the address:port allowing lssd to resolve events on host:port, like "localhost:1235"
+    string eventResolver = 3;
+}
+
+message LndConfiguration
+{
+    // the address:port allowing lssd to connect to this currency lnd, like "localhost:10001"
+    // right now, it is assumed that the bot runs on the same network than lssd, so, there is
+    // no support for authentication.
+    string lndChannel = 1;
+
+    // the tls certificate used by lnd, so that lssd can be sure it's connecting to the right lnd
+    oneof tlsCert
+    {
+        // the path to the tls certificate, if the certificate is stored on the same computer
+        string certPath = 2;
+        // the raw tls certificate represented as string
+        string rawCert = 3;
+    }
+    // macaroon used by lnd, can be empty if no macaroons are used
+    oneof macaroon
+    {
+        // the path to macaroon file
+        string macaroon_path = 4;
+        // the path to raw macaroon represented as string
+        string raw_macaroon = 5;
+    }
+}
+
+message AddCurrencyResponse {}
+
+message GetAddedCurrenciesRequest {}
+
+message GetAddedCurrenciesResponse
+{
+    repeated string currency = 1; // added currencies, like LTC
+}
+
+// trading pairs
+service tradingPairs
+{
+    // Enables the given trading pair, like XSN_LTC, before calling this method, you must
+    // have already added the involved currencies.
+    //
+    // After enabling a trading pair, lssd will download the existing orders form the orderbook,
+    // try waiting some seconds (5 should be enough) before performing any other operation, so
+    // that lssd has the time to sync because this is done in the background.
+    rpc EnableTradingPair(EnableTradingPairRequest) returns(EnableTradingPairResponse);
+
+    // Return current active trading pair, like XSN_LTC, before calling this method, you must
+    // have already added and activated some trading pair
+    rpc GetActiveTradingPair(GetActiveTradingPairRequest) returns(GetActiveTradingPairResponse);
+}
+
+message EnableTradingPairRequest
+{
+    string pairId = 1; // the trading pair to enable, like XSN_LTC
+}
+message EnableTradingPairResponse {}
+
+message GetActiveTradingPairRequest {}
+
+message GetActiveTradingPairResponse
+{
+    repeated string pairId = 1; // current active trading pairs, like XSN_LTC
+}
+
+// orders
+service orders
+{
+    // Places an order to the orderbook, you must have already enabled the involved trading pair.
+    //
+    // NOTE: After the order is matched, lssd will perform the swap automatically, so, your lnd
+    // needs to have a channel with enough coins to our hub.
+    rpc PlaceOrder(PlaceOrderRequest) returns(PlaceOrderResponse);
+
+    // Cancels an existing order.
+    rpc CancelOrder(CancelOrderRequest) returns(CancelOrderResponse);
+
+    // Subscribe to events related to the orders in the orderbook.
+    // Order added, removed will be delivered via this stream.
+    rpc SubscribeOrders(SubscribeOrdersRequest) returns(stream OrderUpdate);
+
+    // Subscribe to events related to the own oroders in the orderbook.
+    // Order added, changed, removed will be delivered via this stream.
+    rpc SubscribeOwnOrders(SubscribeOrdersRequest) returns(stream OwnOrderUpdate);
+
+    // List the available order on the orderbook.
+    rpc ListOrders(ListOrdersRequest) returns(ListOrdersResponse);
+
+    rpc ListOwnOrders(ListOwnOrdersRequest) returns(ListOwnOrdersResponse);
+
+    rpc SubscribeOrderbookState(SubscribeOrderbookStateRequest) returns(stream OrderbookState);
+}
+
+message SubscribeOrderbookStateRequest {}
+
+message OrderbookState
+{
+    enum State { UNKNOWN = 0; CONNECTED = 1; DISCONNECTED = 2; };
+    State state = 1;
+}
+
+message ListOrdersRequest
+{
+    string pairId = 1;
+    int64 lastKnownPrice = 2;
+    uint32 limit = 3;
+}
+
+message ListOrdersResponse
+{
+    repeated OrderSummary orders = 1;
+}
+
+message ListOwnOrdersRequest
+{
+    string pairId = 1;
+}
+
+message ListOwnOrdersResponse
+{
+    repeated Order orders = 1;
+}
+
+message PlaceOrderRequest
+{
+    string pairId = 1;
+    OrderSide side = 2; // whether you are buying or selling
+    BigInteger funds = 3; // the funds you want to exchange, for buy in quote currency, for sell in
+                          // base currency. Basically funds that you own.
+    BigInteger price = 4; // missing on market orders
+}
+
+// Outcome of place order, three possible situations
+// 1. Order was placed
+// 2. Order was placed and matched without going to orderbook
+// 3. Place order or swap has failed
+message PlaceOrderResponse
+{
+    oneof outcome
+    {
+        SwapSuccess swapSuccess = 1;
+        Order order = 2;
+        PlaceOrderFailure failure = 3;
+    }
+}
+
+message OrderbookFailure
+{
+    string pairId = 1;
+    BigInteger funds = 2;
+    string failureReason = 3;
+    BigInteger requiredFee = 4;
+}
+
+message PlaceOrderFailure
+{
+    oneof failure
+    {
+        SwapFailure swapFailure = 1;
+        OrderbookFailure orderbookFailure = 2;
+    }
+}
+
+message CancelOrderRequest
+{
+    string pairId = 1;
+    string orderId = 2;
+}
+message CancelOrderResponse {}
+
+message SubscribeOrdersRequest {}
+
+message OrderUpdate
+{
+    oneof update
+    {
+        // An order that was added to the orderbook.
+        OrderSummary orderAdded = 1;
+        // An order that was removed from the orderbook.
+        OrderSummary orderRemoval = 2;
+    }
+}
+
+message OwnOrderUpdate
+{
+    oneof update
+    {
+        // An own order that was posted.
+        Order orderAdded = 1;
+        // An own order that was changed in orderbook.
+        Order orderChanged = 2;
+        // An id of own order that was fully completed.
+        string orderCompleted = 3;
+        // An id of own order that was canceled.
+        string orderCanceled = 4;
+    }
+}
+
+message OrderSummary
+{
+    string pairId = 1;
+    BigInteger price = 2;
+    // The funds of the order in satoshis.
+    BigInteger funds = 3;
+    OrderSide side = 4;
+    uint64 createdAt = 5;
+    bool isOwnOrder = 6;
+    repeated OrderPortion open = 7;
+    repeated OrderPortion closed = 8;
+}
+
+message Order
+{
+    string pairId = 1;
+    string orderId = 2;
+    // The price of the order in satoshis.
+    BigInteger price = 3;
+    // The funds of the order in satoshis.
+    BigInteger funds = 4;
+    // The epoch time when this order was created.
+    uint64 createdAt = 5;
+    // Whether this order is a buy or sell
+    OrderSide side = 6;
+    // Whether this order is a local own order or a remote peer order.
+    bool isOwnOrder = 7;
+    // Currently open partial trades, empty if order hasn't posted any partial trades.
+    repeated OrderPortion open = 8;
+    // Already completed partial trades, empty if order hasn't completed any partial trades.
+    repeated OrderPortion closed = 9;
+}
+
+message OrderPortion
+{
+    string orderId = 1;
+    BigInteger amount = 2;
+}
+
+// swaps
+service swaps
+{
+    rpc SubscribeSwaps(SubscribeSwapsRequest) returns(stream SwapResult);
+}
+
+message SubscribeSwapsRequest {}
+message SwapResult
+{
+    oneof value
+    {
+        SwapSuccess success = 1;
+        SwapFailure failure = 2;
+    }
+}
+
+message SwapSuccess
+{
+    // Order id assigned by orderbook
+    string orderId = 1;
+    // The trading pair that the swap is for.
+    string pairId = 2;
+    // The order funds that was swapped.
+    BigInteger funds = 3;
+    // The hex-encoded payment hash for the swap.
+    string rHash = 4;
+    // The amount received denominated in satoshis.
+    BigInteger amountReceived = 5;
+    // The amount sent denominated in satoshis.
+    BigInteger amountSent = 6;
+
+    enum Role { TAKER = 0; MAKER = 1; }
+    // Our role in the swap, either MAKER or TAKER.
+    Role role = 7;
+    // The ticker symbol of the currency received.
+    string currencyReceived = 8;
+    // The ticker symbol of the currency sent.
+    string currencySent = 9;
+    // The hex-encoded preimage.
+    string rPreimage = 10;
+    // The price used for the swap.
+    BigInteger price = 11;
+}
+
+message SwapFailure
+{
+    // Order id assigned by orderbook
+    string orderId = 1;
+    // The trading pair that the swap is for.
+    string pairId = 2;
+    // The order funds that was attempted to be swapped.
+    BigInteger funds = 3;
+    // The reason why the swap failed.
+    string failureReason = 4;
+}
+
+// renting
+service renting
+{
+    rpc GetConnextChannelContractDeploymentFee(GetConnextChannelContractDeploymentFeeCommand)
+        returns(GetConnextChannelContractDeploymentFeeResponse);
+    rpc RegisterConnextChannelContractDeploymentFee(RegisterConnextChannelContractDeploymentFeeCommand)
+        returns(RegisterConnextChannelContractDeploymentFeeResponse);
+    rpc GenerateRentChannelInvoice(GenerateInvoiceToRentChannelCommand)
+        returns(GenerateInvoiceToRentChannelResponse);
+    rpc GenerateRentChannelPaymentHash(GenerateInvoiceToRentChannelCommand)
+        returns(GenerateInvoiceToRentChannelResponse);        
+    rpc RentChannel(RentChannelCommand) returns(RentChannelResponse);
+    rpc GetChannelStatus(GetChannelStatusCommand) returns(GetChannelStatusResponse);
+    rpc GetFeeToRentChannel(GetFeeToRentChannelCommand) returns(GetFeeToRentChannelResponse);
+}
+
+// the command to get the fee to deploy the connext contract
+message GetConnextChannelContractDeploymentFeeCommand
+{
+    int32 chainId = 1; // the chain id where the fee was paid
+
+}
+
+message GetConnextChannelContractDeploymentFeeResponse {
+    string hubAddress = 1; // address where the fee needs to be paid
+    BigInteger amount = 2; // amount that needs to be paid, Zero means that the fee has been paid already
+}
+
+// the command to register the fee to deploy the connext contract
+message RegisterConnextChannelContractDeploymentFeeCommand
+{
+    string txHash = 1; // the transaction hash where the fee was paid
+    int32 chainId = 2; // the chain id where the fee was paid
+}
+
+// the response to RegisterConnextContractDeploymentFeeCommand
+message RegisterConnextChannelContractDeploymentFeeResponse {}
+
+
+
+
+// The command to create an invoice to pay the channel rental
+message GenerateInvoiceToRentChannelCommand
+{
+    string currency = 1; // the currency where the hub will open a channel to the wallet
+    string payingCurrency = 2; // the currency available on the wallet to pay the funds
+    BigInteger capacity = 3; // the amount to rent on the channel in satoshis
+    int64 lifetimeSeconds = 4; // the amount of seconds the channel will stay active
+}
+// Event for GenerateInvoiceToRentChannelCommand
+message GenerateInvoiceToRentChannelResponse
+{
+    string paymentRequest = 1; // A bare-bones invoice for a payment within the Lightning Network.
+                               // With the details of the invoice, the sender has all the data
+                               // necessary to send a payment to the recipient.
+}
+
+// Ask the server to create a channel with a given node
+// The channel details are stored with GenerateInvoiceToRentChannelCommand
+// - Response is RentChannelResponse
+message RentChannelCommand
+{
+    string paymentHash = 1; // The hex encoded string of the paymenthash or invoice
+    string payingCurrency = 2; // The currency where you paid the fee
+    bytes nodePublicKey = 3; // the wallet's public key to open the channel
+    string rentedCurrency = 4; // the currency where the hub will open a channel to the wallet
+}
+// Event for RentChannelCommand
+message RentChannelResponse
+{
+    string channelId = 1;
+}
+
+// Command to know the status of a channel.
+message GetChannelStatusCommand
+{
+    string channelId = 1; // The channel id
+}
+// Event for GetChannelStatusCommand
+message GetChannelStatusResponse
+{
+    string status = 1; // The status, OPENING - ACTIVE - CLOSED
+    int64 expiresAt = 2; // The timestamp when the channel will be closed
+}
+
+// The command to calculate the fee to rent a channel
+message GetFeeToRentChannelCommand
+{
+    string currency = 1; // the currency where the hub will open a channel to the wallet
+    string payingCurrency = 2; // the currency available on the wallet to pay the funds
+    BigInteger capacity = 3; // the amount to rent on the channel in satoshis
+    int64 lifetimeSeconds = 4; // the amount of seconds the channel will stay active
+}
+// Event for GenerateInvoiceToRentChannelCommand
+message GetFeeToRentChannelResponse
+{
+    BigInteger fee = 1;
+    BigInteger rentingFee = 2; // this fee covers the time the user will rent the channel plus the
+                               // time it takes to force close the channel
+    BigInteger onChainFees
+        = 3; // this fee is used to pay the opening and closing transaction fees for the channel
+}
