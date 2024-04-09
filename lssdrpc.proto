@@ -85,6 +85,7 @@ message GetAddedCurrenciesResponse
 // trading pairs
 service tradingPairs
 {
+    rpc GetMarketInfo(GetMarketInfoRequest) returns(GetMarketInfoResponse);
     // Enables the given trading pair, like XSN_LTC, before calling this method, you must
     // have already added the involved currencies.
     //
@@ -114,6 +115,7 @@ message GetActiveTradingPairResponse
 // orders
 service orders
 {
+
     // Places an order to the orderbook, you must have already enabled the involved trading pair.
     //
     // NOTE: After the order is matched, lssd will perform the swap automatically, so, your lnd
@@ -157,6 +159,25 @@ message ListOrdersRequest
 message ListOrdersResponse
 {
     repeated OrderSummary orders = 1;
+}
+
+message GetMarketInfoRequest
+{
+    string pairId = 1;
+}
+
+message GetMarketInfoResponse
+{
+    string pairId = 1;
+    string baseCurrency = 2;
+    string quoteCurrency = 3;
+    double minOrderSize = 4;
+    double minUSDOrderSize = 5;
+    int32 amountPrecision = 6;
+    int32 pricePrecision = 7;
+    double maker_fee = 8;
+    double taker_fee = 9;   
+    
 }
 
 message ListOwnOrdersRequest

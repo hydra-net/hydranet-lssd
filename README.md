@@ -336,6 +336,14 @@ If your LSSD API key has fees enabled, the fee payment will be handled automatic
 ![Alt text](docs/market-order.png)
 
 
+# Vortex Bot (reference implementation)
+You can find a working example for a bot implementation using Rust in this public repository:
+
+https://github.com/hydra-net/vortex-
+
+Before using this bot, please make sure that the manual test trade using postman from above is working.
+
+
 ## Logs
 To access the individual components logs, use the following commands:
 
@@ -351,3 +359,5 @@ LSSD
 ```
 docker-compose logs -f bot-0-lssd
 ```
+
+
