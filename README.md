@@ -339,7 +339,7 @@ If your LSSD API key has fees enabled, the fee payment will be handled automatic
 # Vortex Bot (reference implementation)
 You can find a working example for a bot implementation using Rust in this public repository:
 
-https://github.com/hydra-net/vortex-
+https://github.com/hydra-net/vortex-public
 
 Before using this bot, please make sure that the manual test trade using postman from above is working.
 
